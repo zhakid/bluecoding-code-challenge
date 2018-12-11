@@ -29,7 +29,7 @@ function wpbccc_admin_menu() {
     add_menu_page(
     	__('Custom List Users', 'wpbccc'),
     	__('Custom List Users', 'wpbccc'),
-    	'list_users',
+    	'edit_users',
     	'custom-list-users',
     	'wpbccc_users_page_handler',
     	'dashicons-groups'
