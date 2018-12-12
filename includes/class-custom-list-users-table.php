@@ -4,9 +4,11 @@ if (!class_exists('WP_List_Table')) {
     require_once(ABSPATH . 'wp-admin/includes/class-wp-list-table.php');
 }
 
-class Custom_Users_List_Table extends WP_List_Table {
+class Custom_Users_List_Table extends WP_List_Table
+{
 
-	public function __construct() {
+	public function __construct()
+    {
         global $status, $page;
 
         parent::__construct([
@@ -15,48 +17,52 @@ class Custom_Users_List_Table extends WP_List_Table {
         ]);
     }
 
-    public function column_default($item, $column_name) {
-        return $item->$column_name;
+    public function column_default($user, $column_name)
+    {
+        return $user->$column_name;
     }
 
-    public function column_cb($item) {
+    public function column_cb($user)
+    {
         return sprintf(
-            '<input type="checkbox" name="id[]" value="%s" />',
-            $item->ID
+            '<input type="checkbox" name="user_id[]" value="%s" />',
+            $user->ID
         );
     }
 
-    public function column_display_name($item)
+    public function column_display_name($user)
     {
         $actions = [
             'edit' => sprintf(
-            	'<a href="?page=users_form&id=%s">%s</a>',
-            	$item->ID,
+            	'<a href="?page=wpbccc_custom_users_edit&user_id=%s">%s</a>',
+            	$user->ID,
             	__('Edit', 'wpbccc')
             ),
-            'activate' => sprintf(
-            	'<a href="?page=%s&action=activate&id=%s">%s</a>',
+            'change-status' => sprintf(
+            	'<a href="?page=%s&action=change-status&user_id=%s">%s</a>',
             	$_REQUEST['page'],
-            	$item->ID,
-            	__('Activate', 'wpbccc')
+            	$user->ID,
+            	__('Change Status', 'wpbccc')
             ),
         ];
 
         return sprintf('%s %s',
-            $item->display_name,
+            $user->display_name,
             $this->row_actions($actions)
         );
     }
 
-    public function column_role($item) {
-    	$user_meta = get_userdata( $item->ID );
+    public function column_role($user)
+    {
+    	$user_meta = get_userdata( $user->ID );
     	$user_roles = $user_meta->roles;
 
         return implode(', ', $user_roles);
     }
 
-    public function column_status($item) {
-    	return 'Active';
+    public function column_status($user)
+    {
+    	return ($user->user_status) ? __('Active', 'wpbccc') : __('Inactive', 'wpbccc');
     }
 
     public function get_columns() {
@@ -84,7 +90,7 @@ class Custom_Users_List_Table extends WP_List_Table {
     public function get_bulk_actions()
     {
         $actions = [
-            'activate' => 'Activate'
+            'change-status' => __('Change Status', 'wpbccc')
         ];
 
         return $actions;
@@ -92,12 +98,38 @@ class Custom_Users_List_Table extends WP_List_Table {
 
     public function process_bulk_action()
     {
+        if ('change-status' === $this->current_action()) {
+            $user_id = isset($_REQUEST['user_id']) ? $_REQUEST['user_id'] : [];
 
+            if ( is_array($user_id) ) {
+                foreach ($user_id as $id) {
+                    $this->update_user_status($id);
+                }
+            } else {
+                $this->update_user_status($user_id);
+            }
+        }
     }
 
-    public function prepare_items() {
+    private function update_user_status($user_id)
+    {
+        global $wpdb;
 
+        $user = get_user_by('ID', $user_id);
 
+        $result = $wpdb->update(
+            $wpdb->users,
+            [
+                'user_status' => ($user->user_status) ? 0 : 1,
+            ],
+            [ 'ID' => $user->ID ]
+        );
+
+        return $result;
+    }
+
+    public function prepare_items()
+    {
         $columns = $this->get_columns();
         $hidden = [];
         $sortable = $this->get_sortable_columns();
@@ -112,14 +144,16 @@ class Custom_Users_List_Table extends WP_List_Table {
 
         $orderby = (isset($_REQUEST['orderby']) && in_array($_REQUEST['orderby'], array_keys($this->get_sortable_columns()))) ? $_REQUEST['orderby'] : 'display_name';
         $order = (isset($_REQUEST['order']) && in_array($_REQUEST['order'], array('asc', 'desc'))) ? $_REQUEST['order'] : 'asc';
+        $role = isset($_REQUEST['role']) ? $_REQUEST['role'] : '';
 
         $args = [
-        	'count_total' => true,
-        	'fields' => ['ID', 'display_name', 'user_email'],
-        	'orderby' => $orderby,
-        	'order' => $order,
-        	'number' => $per_page,
-        	'offset' => $offset,
+            'role' => $role,
+            'count_total' => true,
+            'fields' => ['ID', 'display_name', 'user_email', 'user_status'],
+            'orderby' => $orderby,
+            'order' => $order,
+            'number' => $per_page,
+            'offset' => $offset,
         ];
 
         $users = new WP_User_Query( $args );
